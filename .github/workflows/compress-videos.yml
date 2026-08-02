@@ -1,0 +1,81 @@
+name: Compress and publish videos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "videos-raw/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compress-videos
+  cancel-in-progress: false
+
+jobs:
+  compress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compress any new raw videos
+        id: compress
+        run: |
+          set -euo pipefail
+          mkdir -p videos
+          shopt -s nullglob
+          changed=0
+
+          for src in videos-raw/*; do
+            base="$(basename "${src%.*}")"
+            out="videos/$base.mp4"
+
+            if [ -f "$out" ]; then
+              continue
+            fi
+
+            echo "Compressing $src -> $out"
+            ffmpeg -y -i "$src" \
+              -vf "scale='min(1920,iw)':-2" \
+              -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p \
+              -c:a aac -b:a 192k \
+              -movflags +faststart \
+              "$out"
+
+            # GitHub rejects pushes with files over 100MB. If we're still
+            # too big, recompress harder rather than fail the push.
+            size=$(stat -c%s "$out")
+            if [ "$size" -gt 95000000 ]; then
+              echo "Still $size bytes, recompressing at a smaller size/bitrate"
+              ffmpeg -y -i "$src" \
+                -vf "scale='min(1600,iw)':-2" \
+                -c:v libx264 -crf 26 -preset slow -pix_fmt yuv420p \
+                -c:a aac -b:a 128k \
+                -movflags +faststart \
+                "$out"
+            fi
+
+            rm "$src"
+            changed=1
+          done
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate manifest
+        if: steps.compress.outputs.changed == '1'
+        run: |
+          python3 -c "
+          import json, os
+          files = sorted(f for f in os.listdir('videos') if f.lower().endswith(('.mp4', '.webm', '.mov', '.m4v', '.ogg')))
+          json.dump(files, open('videos/manifest.json', 'w'))
+          "
+
+      - name: Commit compressed videos
+        if: steps.compress.outputs.changed == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A -- videos videos-raw
+          git commit -m "Auto-compress new video(s)"
+          git push
