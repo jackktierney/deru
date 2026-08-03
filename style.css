@@ -1,9 +1,26 @@
+:root {
+  --bg: #000000;
+  --border: #0d2b1a;
+  --fg: #e8e4d8;
+  --fg-dim: #a9a498;
+}
+
+@font-face {
+  font-family: "Butterbrotpapier";
+  src: url("fonts/butterbrotpapier.woff2") format("woff2"),
+       url("fonts/butterbrotpapier.woff") format("woff"),
+       url("fonts/butterbrotpapier.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  background: #000;
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -13,9 +30,47 @@ body {
   justify-content: center;
 }
 
+#stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 80vw;
+  max-height: 80vh;
+}
+
 #player {
-  max-width: 100vw;
-  max-height: 100vh;
-  border: none;
+  max-width: 100%;
+  max-height: 70vh;
+  border: 6px solid var(--border);
   outline: none;
+  display: block;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+#caption {
+  margin-top: 1.25em;
+  text-align: center;
+  font-family: "Butterbrotpapier", "Courier New", Courier, monospace;
+  color: var(--fg);
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+#caption:empty,
+#word:empty,
+#definition:empty {
+  display: none;
+}
+
+#word {
+  font-size: 1.4em;
+  font-style: italic;
+  letter-spacing: 0.03em;
+}
+
+#definition {
+  margin-top: 0.35em;
+  font-size: 0.95em;
+  color: var(--fg-dim);
 }

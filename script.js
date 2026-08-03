@@ -1,8 +1,14 @@
 const player = document.getElementById('player');
+const captionEl = document.getElementById('caption');
+const wordEl = document.getElementById('word');
+const definitionEl = document.getElementById('definition');
+
+const FADE_MS = 2000;
 
 let playlist = [];
 let queue = [];
 let lastFile = null;
+let words = {};
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -20,14 +26,33 @@ function refillQueue() {
   }
 }
 
-function playNext() {
+function swapMedia(file) {
+  player.src = `videos/${encodeURIComponent(file)}`;
+  player.load();
+  player.addEventListener('canplay', () => {
+    player.play().catch(() => {});
+    player.style.opacity = 1;
+    captionEl.style.opacity = 1;
+  }, { once: true });
+
+  const entry = words[file];
+  wordEl.textContent = entry ? entry.word : '';
+  definitionEl.textContent = entry ? entry.definition : '';
+}
+
+function playNext(fade = true) {
   if (playlist.length === 0) return;
   if (queue.length === 0) refillQueue();
   const file = queue.shift();
   lastFile = file;
-  player.src = `videos/${encodeURIComponent(file)}`;
-  player.load();
-  player.addEventListener('canplay', () => player.play().catch(() => {}), { once: true });
+
+  if (fade) {
+    player.style.opacity = 0;
+    captionEl.style.opacity = 0;
+    setTimeout(() => swapMedia(file), FADE_MS);
+  } else {
+    swapMedia(file);
+  }
 }
 
 async function fetchPlaylist() {
@@ -35,12 +60,22 @@ async function fetchPlaylist() {
   return res.json();
 }
 
-async function init() {
-  playlist = await fetchPlaylist();
-  playNext();
+async function fetchWords() {
+  try {
+    const res = await fetch(`videos/words.json?t=${Date.now()}`);
+    return res.json();
+  } catch {
+    return {};
+  }
 }
 
-player.addEventListener('ended', playNext);
+async function init() {
+  playlist = await fetchPlaylist();
+  words = await fetchWords();
+  playNext(false);
+}
+
+player.addEventListener('ended', () => playNext(true));
 
 // Browsers only allow audio after a user gesture, so unmute on the
 // first interaction anywhere on the page rather than showing a control.
@@ -61,7 +96,8 @@ setInterval(async () => {
   const wasEmpty = playlist.length === 0;
   if (changed) {
     playlist = updated;
-    if (wasEmpty && playlist.length > 0) playNext();
+    words = await fetchWords();
+    if (wasEmpty && playlist.length > 0) playNext(false);
   }
 }, 15000);
 
